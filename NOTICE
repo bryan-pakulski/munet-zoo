@@ -1,0 +1,23 @@
+munet-zoo
+Copyright (c) 2026 Bryan Pakulski. MIT License (see LICENSE), except where a file states otherwise.
+
+RT-DETR / RT-DETRv2 source adaptations
+  Original repository: https://github.com/lyuwenyu/RT-DETR
+  Authors: lyuwenyu and RT-DETR contributors
+  License: Apache License 2.0 (included as munet_zoo/rtdetrv2/LICENSE-RT-DETR)
+  Pinned commits: e97db5a685a874c01c7977cb3a42ab0684ea134b (rtdetrv2_pytorch) and
+                  29320b6fd828f8e0987a71426cf2d961b09dfed7 (rtdetr_pytorch, ResNet backbone)
+
+  munet_zoo/rtdetrv2/{encoder,decoder,utils,loss,denoising}.py, munet_zoo/backbones/presnet.py and ConvNormLayer in
+  munet_zoo/backbones/common.py adapt the reference architecture, parameter names and loss definitions.
+  Changes: PyTorch execution is replaced by MuNet graph operations; targets are padded arrays; matching runs as a
+  graph operation; denoising noise is prepared on the host and passed in; initialization uses NumPy; anchors and
+  sampling scales are constants instead of stored buffers; discrete sampling clamps x and y to their own extents.
+
+ConvNeXt V2
+  Architecture: Woo et al., "ConvNeXt V2: Co-designing and Scaling ConvNets with Masked Autoencoders", 2023.
+  munet_zoo/backbones/convnextv2.py is written for MuNet. Its parameter names follow the timm implementation
+  (https://github.com/huggingface/pytorch-image-models, Apache License 2.0) so that timm weight files load.
+
+Pretrained weights are not part of this repository. They keep their own licenses; the ConvNeXt V2 FCMAE weights
+published by Meta are CC-BY-NC-4.0 (non-commercial).

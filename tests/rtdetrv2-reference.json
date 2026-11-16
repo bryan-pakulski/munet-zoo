@@ -1,0 +1,15 @@
+{
+  "repository": "lyuwenyu/RT-DETR",
+  "commit": "e97db5a685a874c01c7977cb3a42ab0684ea134b",
+  "files": {
+    "box_ops.py": {"path": "rtdetrv2_pytorch/src/zoo/rtdetr/box_ops.py", "sha256": "5f24d21f5e252287eb6d6de302f5840f4e120446bc858933a2dd5523a8f0aa91"},
+    "utils.py": {"path": "rtdetrv2_pytorch/src/zoo/rtdetr/utils.py", "sha256": "0de3857351de6e0fd675c0b22410cefa46e1ef7f1330ad8727c242160529cdf0"},
+    "denoising.py": {"path": "rtdetrv2_pytorch/src/zoo/rtdetr/denoising.py", "sha256": "764a1e926876ba05176e6cf785edd45842dc4a68649b3b14502faf883f95da74"},
+    "hybrid_encoder.py": {"path": "rtdetrv2_pytorch/src/zoo/rtdetr/hybrid_encoder.py", "sha256": "355d36099bc511807a00c8c80bf561a8cc0e769f6aa33017543474ea7cab287e"},
+    "rtdetrv2_decoder.py": {"path": "rtdetrv2_pytorch/src/zoo/rtdetr/rtdetrv2_decoder.py", "sha256": "8ae7800da2b5b5bb2a28a6eedf5217dfaa6a7d2829dc1a92ad950e875da0721c"},
+    "matcher.py": {"path": "rtdetrv2_pytorch/src/zoo/rtdetr/matcher.py", "sha256": "11a221ea7a2ad4e728a008ead7f73d1cba3649066f795b2076200c0d41738ad1"},
+    "rtdetrv2_criterion.py": {"path": "rtdetrv2_pytorch/src/zoo/rtdetr/rtdetrv2_criterion.py", "sha256": "df149c47e8054831334355b05e03a98cbbd974ba51e0ed08f476ca64b2944b4e"},
+    "common.py": {"path": "rtdetrv2_pytorch/src/nn/backbone/common.py", "sha256": "c4721e8ace22bfd522a39fe0cf259ef528d303c49898e3ecb96fc55b88569dd4"},
+    "presnet.py": {"path": "rtdetrv2_pytorch/src/nn/backbone/presnet.py", "sha256": "7b07405d6c3e79ebb50b7940b4b235a8aacea71f1e38018f2d0ffd5b7a10afc8"}
+  }
+}
