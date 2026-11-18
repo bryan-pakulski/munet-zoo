@@ -96,6 +96,62 @@ for epoch in range(72):
   that took 7.5 minutes and about 10 GB of host memory; later steps took 0.43 s. Each new image size or batch size
   compiles again, so keep them fixed.
 
+### Train on a pool
+
+`pool_stages` cuts the detector into stage functions for MuNet's training pool (`munet.pool`), so that no node has to
+hold the whole model. The pool is not in a MuNet release yet (0.11.1 does not have it).
+
+```python
+import munet as mu
+from munet import pool
+from munet_zoo.rtdetrv2 import RTDETRCriterionv2, pad_targets, pool_stages, prepare_denoising, rtdetrv2_adamw
+
+model.train()
+criterion, optimizer = RTDETRCriterionv2(model.num_classes), rtdetrv2_adamw(model)
+
+def shard(images, targets):                      # one task: a few images and their targets
+    padded = pad_targets(targets, model.num_classes, 100)
+    dn = prepare_denoising(padded, model.num_classes, model.num_queries,
+                           num_denoising=model.config["num_denoising"], rng=rng)
+    return [images, padded["labels"], padded["boxes"], padded["valid"],
+            dn["labels"], dn["boxes_unact"], dn["attn_mask"]], dn
+
+def update():
+    mu.optim.clip_grad_norm_(model.parameters(), 0.1)
+    optimizer.step()
+
+shards = [shard(images[i:i + 1], targets[i:i + 1]) for i in range(len(images))]
+stages = pool_stages(model, criterion, shards[0][1], layers_per_stage=1)
+p = pool.Pool(stages, model.parameters(), update, token=token)
+p.serve()
+loss = p.step_shards([arrays for arrays, _ in shards])
+```
+
+- The stages are the backbone, the encoder, query selection, then the decoder layers `layers_per_stage` at a time.
+  The last stage also computes the loss.
+- The loss reads every decoder layer, so each decoder stage passes on the logits and boxes of the layers before it.
+- A staged step equals a single-machine step up to float rounding (tested on a small model).
+- Every shard needs the `num_group` and `max_gt` of the `prepare_denoising` result given to `pool_stages`. `max_gt`
+  is the largest object count in the shard. Nothing checks this: a shard with other values gets a wrong loss or
+  fails. Images with different object counts therefore cannot be mixed yet.
+
+Measured with `convnextv2_atto`, one 640 px image per shard, fp32. Sizes are MuNet's count of a program's buffers, the
+number a node's `--memory` limit is compared with. They were the same on an RTX 3060 and an Arc B580.
+
+| `layers_per_stage` | Programs per shard | Largest program | Largest decoder program | Seconds per step |
+|---|---|---|---|---|
+| no stages | 1 | 1186.0 MiB | | 5.77 |
+| 3 | 9 | 389.9 MiB | 324.2 MiB | 8.10 |
+| 2 | 11 | 389.9 MiB | 254.7 MiB | not run |
+| 1 | 17 | 389.9 MiB | 182.4 MiB | 10.90 |
+
+- Seconds per step: 16 shards, one RTX 3060 node on the same machine, mean of three steps after two.
+- The largest program of every cut is the encoder's backward pass. The backbone's backward pass needs 338.4 MiB.
+- At most 9.6 MiB passes between two stages.
+- Smaller programs cost speed: each stage but the last runs its forward pass twice, and a shard's tasks run in turn.
+- A limit close to the largest program is slow. With `--memory 512M` on two nodes nothing was declined, but a node
+  dropped and reloaded programs to stay under it: 83 loads of 17 programs in three steps, 12.78 s per 4-shard step.
+
 ### Predict and export
 
 ```python

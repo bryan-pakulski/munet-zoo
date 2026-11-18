@@ -126,30 +126,33 @@ class TransformerDecoder(nn.Module):
         self.num_layers = num_layers
         self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
 
+    def step(self, i, output, ref_points, memory, memory_spatial_shapes, bbox_head, score_head, query_pos_head,
+             attn_mask=None, memory_mask=None):
+        """Layer i alone. ref_points: the boxes the layer before it refined (for layer 0, the sigmoid of the initial
+        ones). Returns the layer's output, the boxes it refined, and its logits and boxes for the loss (None in eval
+        mode for every layer but eval_idx)."""
+        ref_points_detach = ref_points if i == 0 else ref_points.detach()
+        query_pos_embed = query_pos_head(ref_points_detach)
+        output = self.layers[i](output, ref_points_detach.unsqueeze(2), memory, memory_spatial_shapes, attn_mask, memory_mask, query_pos_embed)
+        inter_ref_bbox = F.sigmoid(bbox_head[i](output) + inverse_sigmoid(ref_points_detach))
+        if self.training:
+            logits = score_head[i](output)
+            return output, inter_ref_bbox, logits, inter_ref_bbox if i == 0 else F.sigmoid(bbox_head[i](output) + inverse_sigmoid(ref_points))
+        if i == self.eval_idx: return output, inter_ref_bbox, score_head[i](output), inter_ref_bbox
+        return output, inter_ref_bbox, None, None
+
     def forward(self, target, ref_points_unact, memory, memory_spatial_shapes, bbox_head, score_head, query_pos_head,
                 attn_mask=None, memory_mask=None):
         dec_out_bboxes = []
         dec_out_logits = []
-        ref_points_detach = F.sigmoid(ref_points_unact)
-        output = target
-        for i, layer in enumerate(self.layers):
-            ref_points_input = ref_points_detach.unsqueeze(2)
-            query_pos_embed = query_pos_head(ref_points_detach)
-            output = layer(output, ref_points_input, memory, memory_spatial_shapes, attn_mask, memory_mask, query_pos_embed)
-            inter_ref_bbox = F.sigmoid(bbox_head[i](output) + inverse_sigmoid(ref_points_detach))
-
-            if self.training:
-                dec_out_logits.append(score_head[i](output))
-                if i == 0: dec_out_bboxes.append(inter_ref_bbox)
-                else: dec_out_bboxes.append(F.sigmoid(bbox_head[i](output) + inverse_sigmoid(ref_points)))
-            elif i == self.eval_idx:
-                dec_out_logits.append(score_head[i](output))
-                dec_out_bboxes.append(inter_ref_bbox)
-                break
-
-            ref_points = inter_ref_bbox
-            ref_points_detach = inter_ref_bbox.detach()
-
+        output, ref_points = target, F.sigmoid(ref_points_unact)
+        for i in range(len(self.layers)):
+            output, ref_points, logits, boxes = self.step(i, output, ref_points, memory, memory_spatial_shapes, bbox_head, score_head,
+                                                          query_pos_head, attn_mask, memory_mask)
+            if logits is not None:
+                dec_out_logits.append(logits)
+                dec_out_bboxes.append(boxes)
+            if not self.training and i == self.eval_idx: break
         return stack(dec_out_bboxes), stack(dec_out_logits)
 
 
@@ -276,23 +279,29 @@ class RTDETRTransformerv2(nn.Module):
             content = cat([denoising_class, content], 1)
         return content, ref_points_unact, enc_aux
 
-    def forward(self, feats, denoising=None):
-        """denoising: the dict from prepare_denoising (training only), or None."""
+    def _denoising_meta(self, denoising):
+        return {"dn_num_group": denoising["num_group"], "max_gt": denoising["max_gt"],
+                "dn_num_split": [denoising["labels"].shape[1], self.num_queries]}
+
+    def queries(self, feats, denoising=None):
+        """Everything before the decoder layers. Returns the flattened features, their spatial shapes, the query content,
+        the initial reference boxes (unactivated), the attention mask, the encoder's auxiliary outputs and the denoising
+        split (None without denoising)."""
         memory, spatial_shapes = self._get_encoder_input(feats)
 
         if self.training and denoising is not None:
             denoising_class = self.denoising_class_embed(denoising["labels"])
             denoising_bbox_unact = denoising["boxes_unact"]
             attn_mask = denoising["attn_mask"]
-            dn_meta = {"dn_num_group": denoising["num_group"], "max_gt": denoising["max_gt"],
-                       "dn_num_split": [denoising_class.shape[1], self.num_queries]}
+            dn_meta = self._denoising_meta(denoising)
         else:
             denoising_class, denoising_bbox_unact, attn_mask, dn_meta = None, None, None, None
 
         content, ref_points_unact, enc_aux = self._get_decoder_input(memory, spatial_shapes, denoising_class, denoising_bbox_unact)
-        out_bboxes, out_logits = self.decoder(content, ref_points_unact, memory, spatial_shapes, self.dec_bbox_head,
-                                              self.dec_score_head, self.query_pos_head, attn_mask=attn_mask)
+        return memory, spatial_shapes, content, ref_points_unact, attn_mask, enc_aux, dn_meta
 
+    def outputs(self, out_bboxes, out_logits, enc_aux, dn_meta):
+        """The model's output from the boxes and logits of the decoder layers, stacked on dim 0."""
         if self.training and dn_meta is not None:
             dn_out_bboxes, out_bboxes = out_bboxes.split(dn_meta['dn_num_split'], dim=2)
             dn_out_logits, out_logits = out_logits.split(dn_meta['dn_num_split'], dim=2)
@@ -306,6 +315,13 @@ class RTDETRTransformerv2(nn.Module):
                 out['dn_aux_outputs'] = self._set_aux_loss(dn_out_logits, dn_out_bboxes)
                 out['dn_meta'] = dn_meta
         return out
+
+    def forward(self, feats, denoising=None):
+        """denoising: the dict from prepare_denoising (training only), or None."""
+        memory, spatial_shapes, content, ref_points_unact, attn_mask, enc_aux, dn_meta = self.queries(feats, denoising)
+        out_bboxes, out_logits = self.decoder(content, ref_points_unact, memory, spatial_shapes, self.dec_bbox_head,
+                                              self.dec_score_head, self.query_pos_head, attn_mask=attn_mask)
+        return self.outputs(out_bboxes, out_logits, enc_aux, dn_meta)
 
     @staticmethod
     def _set_aux_loss(outputs_class, outputs_coord):

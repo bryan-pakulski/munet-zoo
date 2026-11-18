@@ -62,4 +62,5 @@ class RTDETRv2(nn.Module):
 from .loss import RTDETRCriterionv2, HungarianMatcher  # noqa: E402
 from .denoising import pad_targets, prepare_denoising  # noqa: E402
 from .training import DetectorTrainer, rtdetrv2_adamw, load_torch_checkpoint  # noqa: E402
+from .stages import pool_stages  # noqa: E402
 from .data import PostProcessor, Predictor, CocoDetection, preprocess, coco_results, evaluate_coco  # noqa: E402
