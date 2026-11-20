@@ -5,6 +5,7 @@ Models built from [MuNet](https://pypi.org/project/munet-nn/) layers, with train
 | Model | Package | Backbones |
 | --- | --- | --- |
 | RT-DETRv2 (object detection) | `munet_zoo.rtdetrv2` | ConvNeXt V2, ResNet-vd |
+| YOLOX (object detection) | `munet_zoo.yolox` | CSPDarknet (nano, tiny, s, m, l) |
 
 No weights are stored here. You supply the weight files; see [Weights and licences](#weights-and-licences).
 
@@ -193,6 +194,27 @@ The port follows `lyuwenyu/RT-DETR` (`rtdetrv2_pytorch`) at commit `e97db5a`. Kn
 - A batch with no objects gets no denoising queries.
 - Denoising noise is drawn with NumPy, so a run does not reproduce upstream's random sequence.
 
+## YOLOX
+
+Anchor-free detector with a CSPDarknet backbone, a PAFPN neck and a decoupled head with objectness, at strides 8, 16
+and 32. The sizes are `nano`, `tiny`, `s`, `m` and `l`. Targets are padded to a fixed number of slots, so one compiled
+program trains on images with any number of boxes (SimOTA assignment runs as graph operations).
+
+```python
+from munet_zoo.yolox import YOLOX, YOLOXTrainer
+
+model = YOLOX(num_classes=7, size='s')
+trainer = YOLOXTrainer(model, device='vulkan', slots=32)
+losses = trainer.step(images, [{'labels': [0, 3], 'boxes': [[320, 300, 40, 60], [100, 90, 20, 20]]}, {'labels': [], 'boxes': []}])
+```
+
+- `images` are `[B, 3, H, W]` float32 in the range the model was trained for; boxes are `cx, cy, w, h` in pixels.
+- `step` returns the `loss` and its terms `iou`, `obj` and `cls`.
+- The trainer uses Nesterov SGD (weight decay on weights only) and an EMA; `save`, `load` and `inference_model()` work as
+  for RT-DETRv2.
+- The loss is one function of the batch, so it trains on a pool as it is (see
+  [Train on a pool](#train-on-a-pool)): `Pool(loss_fn, model.parameters(), optimizer, ...)`.
+
 ## Tests
 
 ```bash
@@ -203,6 +225,9 @@ MUNET_TEST_VULKAN=1 pytest           # also runs the GPU tests
 
 The tests compare outputs, losses, gradients and one optimizer step with the upstream PyTorch code on the same
 weights and inputs.
+
+The YOLOX tests have no PyTorch reference: they check shapes, finite losses and gradients, that the loss falls on
+synthetic scenes, empty targets, a changing box count, checkpoints and training on a pool.
 
 ## Weights and licences
 
