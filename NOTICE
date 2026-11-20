@@ -20,8 +20,9 @@ ConvNeXt V2
   (https://github.com/huggingface/pytorch-image-models, Apache License 2.0) so that timm weight files load.
 
 YOLOX
-  Architecture: Ge et al., "YOLOX: Exceeding YOLO Series in 2021", 2021 (reference implementation: Megvii-BaseDetection/YOLOX,
-  Apache License 2.0). munet_zoo/yolox is written for MuNet from the paper's design; no upstream source is included.
+  Architecture: Ge et al., "YOLOX: Exceeding YOLO Series in 2021", 2021, arXiv:2107.08430.
+  Reference implementation: https://github.com/Megvii-BaseDetection/YOLOX (Apache License 2.0).
+  munet_zoo/yolox is written for MuNet from the paper's design; no upstream file is copied.
 
 Pretrained weights are not part of this repository. They keep their own licenses; the ConvNeXt V2 FCMAE weights
 published by Meta are CC-BY-NC-4.0 (non-commercial).

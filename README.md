@@ -203,17 +203,39 @@ program trains on images with any number of boxes (SimOTA assignment runs as gra
 ```python
 from munet_zoo.yolox import YOLOX, YOLOXTrainer
 
-model = YOLOX(num_classes=7, size='s')
-trainer = YOLOXTrainer(model, device='vulkan', slots=32)
-losses = trainer.step(images, [{'labels': [0, 3], 'boxes': [[320, 300, 40, 60], [100, 90, 20, 20]]}, {'labels': [], 'boxes': []}])
+model = YOLOX(num_classes=7, size="s")
+trainer = YOLOXTrainer(model, device="vulkan", slots=32)
+targets = [{"labels": [0, 3], "boxes": [[320, 300, 40, 60], [100, 90, 20, 20]]},     # cx, cy, w, h in pixels
+           {"labels": [], "boxes": []}]
+losses = trainer.step(images, targets)         # images: [B, 3, H, W] float32
 ```
 
-- `images` are `[B, 3, H, W]` float32 in the range the model was trained for; boxes are `cx, cy, w, h` in pixels.
-- `step` returns the `loss` and its terms `iou`, `obj` and `cls`.
-- The trainer uses Nesterov SGD (weight decay on weights only) and an EMA; `save`, `load` and `inference_model()` work as
-  for RT-DETRv2.
-- The loss is one function of the batch, so it trains on a pool as it is (see
-  [Train on a pool](#train-on-a-pool)): `Pool(loss_fn, model.parameters(), optimizer, ...)`.
+- `step` returns floats: `loss` and the terms `iou`, `obj`, `cls`, `total` and `matched` (the matched anchor count).
+- The trainer uses Nesterov SGD (weight decay on weights only) and an EMA. `save`, `load` and
+  `inference_model()` work as for RT-DETRv2. More than `slots` boxes in an image is an error.
+- `YOLOX.decode(outputs, size)` turns the raw output `[B, anchors, 5 + classes]` into boxes (cx, cy, w, h in pixels).
+
+### Train on a pool
+
+The loss is one function of the batch arrays, so `munet.pool.Pool` trains the model without stages. The pool is not
+in a MuNet release yet.
+
+```python
+import munet as mu
+from munet import pool
+from munet_zoo.yolox import YOLOXLoss, pad_targets
+
+criterion, params = YOLOXLoss(7), list(model.parameters())
+
+def loss_fn(images, labels, boxes, valid):
+    out = model(images)
+    return criterion(out, {"labels": labels, "boxes": boxes, "valid": valid}, size=images.shape[-2:])["total"]
+
+p = pool.Pool(loss_fn, params, mu.optim.SGD(params, lr=0.01, momentum=0.9), token=token, shard_rows=2)
+p.serve()
+padded = pad_targets(targets, 32)
+loss = p.step(images, padded["labels"], padded["boxes"], padded["valid"])
+```
 
 ## Tests
 
