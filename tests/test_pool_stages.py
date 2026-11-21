@@ -98,7 +98,7 @@ def test_staged_pool_step_equals_a_single_machine_step():
     stages = pool_stages(model, RTDETRCriterionv2(3), dn, layers_per_stage=2)
     p = pool.Pool(stages, trainable, mu.optim.SGD(trainable, lr=0.01), token=TOKEN, device='cpu')
     host, port = p.serve(port=0)
-    node = pool.Node(f'http://{host}:{port}', TOKEN, device='cpu', wait_seconds=1.0)
+    node = pool.Node(f'http://{host}:{port}', TOKEN, device='cpu')
     thread = threading.Thread(target=node.run, daemon=True)
     thread.start()
     try:

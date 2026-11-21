@@ -89,7 +89,7 @@ def test_pool_trains_with_one_loss_function():
 
     p = pool.Pool(loss_fn, trainable, mu.optim.SGD(trainable, lr=0.01, momentum=0.9), token=TOKEN, shard_rows=2, device='cpu')
     host, port = p.serve(port=0)
-    node = pool.Node(f'http://{host}:{port}', TOKEN, device='cpu', wait_seconds=1.0)
+    node = pool.Node(f'http://{host}:{port}', TOKEN, device='cpu')
     thread = threading.Thread(target=node.run, daemon=True); thread.start()
     images, targets = batch(np.random.default_rng(3), [2, 1, 3, 0])
     padded = pad_targets(targets, SLOTS)

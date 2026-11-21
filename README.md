@@ -6,6 +6,10 @@ Models built from [MuNet](https://pypi.org/project/munet-nn/) layers, with train
 | --- | --- | --- |
 | RT-DETRv2 (object detection) | `munet_zoo.rtdetrv2` | ConvNeXt V2, ResNet-vd |
 | YOLOX (object detection) | `munet_zoo.yolox` | CSPDarknet (nano, tiny, s, m, l) |
+| U-Net (semantic segmentation) | `munet_zoo.unet` | Convolutional encoder and decoder |
+| ViT (image classification) | `munet_zoo.vit` | Patch embedding, pre-norm encoder |
+| GPT (language model) | `munet_zoo.gpt` | Causal self-attention blocks |
+| Sequence tagger (time series, text) | `munet_zoo.seqtag` | LSTM stack |
 
 No weights are stored here. You supply the weight files; see [Weights and licences](#weights-and-licences).
 
