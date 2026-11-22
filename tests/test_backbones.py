@@ -50,11 +50,36 @@ def test_convnextv2_matches_timm(variant, tmp_path):
         np.testing.assert_allclose(actual.numpy(), want, rtol=5e-4, atol=1e-5 * np.abs(want).max())
 
 
-@pytest.mark.parametrize('name', ['convnextv2_atto', 'presnet18', 'test_tiny'])
+def test_convnext_matches_timm(tmp_path):
+    """ConvNeXt v1 (the DINOv3-distilled layout): layer scale, no GRN, optional output norms."""
+    timm = pytest.importorskip('timm')
+    torch = pytest.importorskip('torch')
+    save_file = pytest.importorskip('safetensors.torch').save_file
+    torch.manual_seed(3)
+    reference = timm.create_model('convnext_tiny', pretrained=False).eval()
+    with torch.no_grad():
+        for name, p in reference.named_parameters():
+            if name.endswith('.gamma'): p.normal_(std=0.5)  # 1e-6 at initialization, which would hide the blocks
+    save_file(reference.state_dict(), str(tmp_path / 'model.safetensors'))
+    model = build_backbone('convnext_tiny').load_timm(tmp_path / 'model.safetensors').eval()
+    image = np.random.default_rng(4).normal(size=(2, 3, 64, 96)).astype(np.float32)
+    with torch.no_grad():
+        x, expected = reference.stem(torch.tensor(image)), []
+        for stage in reference.stages:
+            x = stage(x)
+            expected.append(x.numpy())
+    result = mu.compile(model, device='cpu', precision='fp32')(image)
+    assert model.out_channels == [192, 384, 768] and len(result) == 3
+    for actual, want in zip(result, expected[1:]):
+        np.testing.assert_allclose(actual.numpy(), want, rtol=5e-4, atol=1e-5 * np.abs(want).max())
+    assert len(build_backbone('convnext_tiny', out_norm=True).out_norms) == 3
+
+
+@pytest.mark.parametrize('name', ['convnextv2_atto', 'convnext_tiny', 'presnet18', 'test_tiny'])
 def test_detector_runs_with_any_registered_backbone(name):
     model = RTDETRv2(3, backbone=name, **SMALL).eval()
     assert RTDETRv2(**model.config).config == model.config
-    assert (model.mean is not None) == name.startswith('convnextv2')
+    assert (model.mean is not None) == name.startswith('convnext')
     image = np.random.default_rng(9).uniform(size=(1, 3, 64, 96)).astype(np.float32)
     out = {k: v.numpy() for k, v in mu.compile(model, device='cpu')(image).items()}
     assert out['pred_logits'].shape == (1, 4, 3) and out['pred_boxes'].shape == (1, 4, 4)
@@ -62,7 +87,8 @@ def test_detector_runs_with_any_registered_backbone(name):
 
 
 def test_registry_and_backbone_arguments():
-    assert {'convnextv2_atto', 'convnextv2_tiny', 'presnet18', 'presnet50', 'test_tiny'} <= set(available())
+    names = {'convnext_tiny', 'convnextv2_atto', 'convnextv2_tiny', 'presnet18', 'presnet50', 'test_tiny'}
+    assert names <= set(available())
     with pytest.raises(ValueError): RTDETRv2(3, backbone='no_such_backbone', **SMALL)
     with pytest.raises(ValueError): register('test_tiny')(TinyBackbone)
     model = RTDETRv2(3, backbone='convnextv2_atto', backbone_args={'freeze_at': 4}, **SMALL)

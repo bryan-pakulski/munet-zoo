@@ -4,7 +4,7 @@ Models built from [MuNet](https://pypi.org/project/munet-nn/) layers, with train
 
 | Model | Package | Backbones |
 | --- | --- | --- |
-| RT-DETRv2 (object detection) | `munet_zoo.rtdetrv2` | ConvNeXt V2, ResNet-vd |
+| RT-DETRv2 (object detection) | `munet_zoo.rtdetrv2` | ConvNeXt (incl. DINOv3), ConvNeXt V2, ResNet-vd |
 | YOLOX (object detection) | `munet_zoo.yolox` | CSPDarknet (nano, tiny, s, m, l) |
 | U-Net (semantic segmentation) | `munet_zoo.unet` | Convolutional encoder and decoder |
 | ViT (image classification) | `munet_zoo.vit` | Patch embedding, pre-norm encoder |
@@ -41,7 +41,7 @@ A backbone is chosen by name. `backbone_args` go to its constructor.
 
 ```python
 from munet_zoo.backbones import available
-available()   # convnextv2_atto / femto / pico / nano / tiny / base, presnet18 / 34 / 50 / 101
+available()   # convnext_tiny / small / base / large, convnextv2_atto / femto / pico / nano / tiny / base, presnet18 / 34 / 50 / 101
 
 RTDETRv2(80, backbone="convnextv2_tiny", backbone_args={"freeze_at": 1})   # freeze the stem and the first stage
 RTDETRv2(80, backbone="presnet50")
