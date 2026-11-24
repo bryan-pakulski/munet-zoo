@@ -31,4 +31,4 @@ def build_backbone(name, **kwargs):
     return backbone
 
 
-from . import convnext, convnextv2, presnet  # noqa: E402,F401  (registers the built-in backbones)
+from . import convnext, convnextv2, hgnetv2, presnet  # noqa: E402,F401  (registers the built-in backbones)

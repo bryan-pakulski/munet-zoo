@@ -79,7 +79,7 @@ def read_safetensors(path):
     with open(path, 'rb') as file:
         header = json.loads(file.read(int.from_bytes(file.read(8), 'little')))
         data = file.read()
-    dtypes = {'F16': np.float16, 'F32': np.float32, 'F64': np.float64}
+    dtypes = {'F16': np.float16, 'F32': np.float32, 'F64': np.float64, 'I64': np.int64}
     tensors = {}
     for name, entry in header.items():
         if name == '__metadata__': continue
